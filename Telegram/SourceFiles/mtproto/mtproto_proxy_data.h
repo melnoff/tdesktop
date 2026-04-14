@@ -20,6 +20,7 @@ struct ProxyData {
 		Socks5,
 		Http,
 		Mtproto,
+		Vless,
 	};
 	enum class Status {
 		Valid,
@@ -40,6 +41,10 @@ struct ProxyData {
 	[[nodiscard]] Status status() const;
 	[[nodiscard]] bool supportsCalls() const;
 	[[nodiscard]] bool tryCustomResolve() const;
+
+	// For Type::Vless, ensures the local sing-box sidecar is running and returns
+	// an equivalent Socks5 proxy pointing at it. Otherwise returns *this.
+	[[nodiscard]] ProxyData forUse() const;
 	[[nodiscard]] bytes::vector secretFromMtprotoPassword() const;
 	[[nodiscard]] explicit operator bool() const;
 	[[nodiscard]] bool operator==(const ProxyData &other) const;

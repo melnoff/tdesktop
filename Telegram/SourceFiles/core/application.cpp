@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "core/application.h"
 
+#include "mtproto/proxy/vless_bridge.h"
 #include "data/data_abstract_structure.h"
 #include "data/data_channel.h"
 #include "data/data_forum.h"
@@ -235,6 +236,8 @@ Application::~Application() {
 	closeAdditionalWindows();
 
 	_domain->finish();
+
+	MTP::Proxy::VlessBridge::instance().shutdownAll();
 
 	Local::finish();
 

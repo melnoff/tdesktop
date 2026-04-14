@@ -41,6 +41,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/popup_menu.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/table_layout.h"
+
+#include <QtGui/QClipboard>
+#include <QtGui/QGuiApplication>
 #include "ui/wrap/vertical_layout.h"
 #include "ui/vertical_list.h"
 #include "ui/ui_utility.h"
@@ -421,6 +424,7 @@ private:
 	void setupSocketAddress(const ProxyData &data);
 	void setupCredentials(const ProxyData &data);
 	void setupMtprotoCredentials(const ProxyData &data);
+	void setupVlessCredentials(const ProxyData &data);
 
 	void addLabel(
 		not_null<Ui::VerticalLayout*> parent,
@@ -440,8 +444,11 @@ private:
 	QPointer<Ui::PasswordInput> _password;
 	QPointer<Base64UrlInput> _secret;
 
+	QPointer<Ui::SlideWrap<Ui::VerticalLayout>> _socketAddress;
 	QPointer<Ui::SlideWrap<Ui::VerticalLayout>> _credentials;
 	QPointer<Ui::SlideWrap<Ui::VerticalLayout>> _mtprotoCredentials;
+	QPointer<Ui::SlideWrap<Ui::VerticalLayout>> _vlessCredentials;
+	QPointer<Ui::InputField> _vlessUrl;
 
 };
 
@@ -1177,6 +1184,15 @@ void ProxyBox::share() {
 ProxyData ProxyBox::collectData() {
 	auto result = ProxyData();
 	result.type = _type->current();
+	if (result.type == Type::Vless) {
+		// For Vless: host stores the raw vless:// URL; port/user/password unused.
+		result.host = _vlessUrl->getLastText().trimmed();
+		if (!result.valid()) {
+			_vlessUrl->showError();
+			return ProxyData();
+		}
+		return result;
+	}
 	result.host = _host->getLastText().trimmed();
 	result.port = _port->getLastText().trimmed().toInt();
 	result.user = (result.type == Type::Mtproto)
@@ -1203,10 +1219,11 @@ ProxyData ProxyBox::collectData() {
 }
 
 void ProxyBox::setupTypes() {
-	const auto types = std::map<Type, QString>{
-		{ Type::Http, "HTTP" },
-		{ Type::Socks5, "SOCKS5" },
+	const auto types = std::vector<std::pair<Type, QString>>{
+		{ Type::Socks5,  "SOCKS5" },
+		{ Type::Http,    "HTTP" },
 		{ Type::Mtproto, "MTPROTO" },
+		{ Type::Vless,   "VLESS" },
 	};
 	for (const auto &[type, label] : types) {
 		_content->add(
@@ -1229,17 +1246,22 @@ void ProxyBox::setupTypes() {
 }
 
 void ProxyBox::setupSocketAddress(const ProxyData &data) {
-	addLabel(_content, tr::lng_proxy_address_label(tr::now));
-	const auto address = _content->add(
-		object_ptr<Ui::FixedHeightWidget>(
+	_socketAddress = _content->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
 			_content,
+			object_ptr<Ui::VerticalLayout>(_content)));
+	const auto inner = _socketAddress->entity();
+	addLabel(inner, tr::lng_proxy_address_label(tr::now));
+	const auto address = inner->add(
+		object_ptr<Ui::FixedHeightWidget>(
+			inner,
 			st::connectionHostInputField.heightMin),
 		st::proxyEditInputPadding);
 	_host = Ui::CreateChild<HostInput>(
 		address,
 		st::connectionHostInputField,
 		tr::lng_connection_host_ph(),
-		data.host);
+		(data.type == Type::Vless) ? QString() : data.host);
 	_port = Ui::CreateChild<Ui::NumberInput>(
 		address,
 		st::connectionPortInputField,
@@ -1315,6 +1337,37 @@ void ProxyBox::setupMtprotoCredentials(const ProxyData &data) {
 	mtproto->add(std::move(secretWrap), st::proxyEditInputPadding);
 }
 
+void ProxyBox::setupVlessCredentials(const ProxyData &data) {
+	_vlessCredentials = _content->add(
+		object_ptr<Ui::SlideWrap<Ui::VerticalLayout>>(
+			_content,
+			object_ptr<Ui::VerticalLayout>(_content)));
+	const auto inner = _vlessCredentials->entity();
+	addLabel(inner, QStringLiteral("VLESS URL"));
+
+	_vlessUrl = inner->add(
+		object_ptr<Ui::InputField>(
+			inner,
+			st::connectionHostInputField,
+			Ui::InputField::Mode::NoNewlines,
+			rpl::single(QStringLiteral("vless://...")),
+			(data.type == Type::Vless) ? data.host : QString()),
+		st::proxyEditInputPadding);
+
+	const auto paste = inner->add(
+		object_ptr<Ui::LinkButton>(
+			inner,
+			QStringLiteral("Paste from clipboard")),
+		st::proxyEditInputPadding);
+	paste->setClickedCallback([=] {
+		const auto clip = QGuiApplication::clipboard();
+		const auto text = clip ? clip->text().trimmed() : QString();
+		if (text.startsWith(u"vless://"_q, Qt::CaseInsensitive)) {
+			_vlessUrl->setText(text);
+		}
+	});
+}
+
 void ProxyBox::setupControls(const ProxyData &data) {
 	_type = std::make_shared<Ui::RadioenumGroup<Type>>(
 		(data.type == Type::None
@@ -1328,13 +1381,20 @@ void ProxyBox::setupControls(const ProxyData &data) {
 	setupSocketAddress(data);
 	setupCredentials(data);
 	setupMtprotoCredentials(data);
+	setupVlessCredentials(data);
 
 	const auto handleType = [=](Type type) {
+		_socketAddress->toggle(
+			type != Type::Vless,
+			anim::type::instant);
 		_credentials->toggle(
 			type == Type::Http || type == Type::Socks5,
 			anim::type::instant);
 		_mtprotoCredentials->toggle(
 			type == Type::Mtproto,
+			anim::type::instant);
+		_vlessCredentials->toggle(
+			type == Type::Vless,
 			anim::type::instant);
 		_aboutSponsored->toggle(
 			type == Type::Mtproto,

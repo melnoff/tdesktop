@@ -9,6 +9,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "base/qthelp_url.h"
 #include "base/qt/qt_string_view.h"
+#include "mtproto/proxy/vless_bridge.h"
+#include "mtproto/proxy/vless_parser.h"
 
 namespace MTP {
 namespace {
@@ -150,6 +152,16 @@ bool ProxyData::valid() const {
 }
 
 ProxyData::Status ProxyData::status() const {
+	if (type == Type::Vless) {
+		// Vless stores the full vless:// URL in `host`; port/user/password unused.
+		if (host.isEmpty()) {
+			return Status::Invalid;
+		}
+		const auto parsed = Proxy::ParseVlessUrl(host);
+		return (parsed && parsed->valid())
+			? Status::Valid
+			: Status::Invalid;
+	}
 	if (type == Type::None || host.isEmpty() || !port) {
 		return Status::Invalid;
 	} else if (type == Type::Mtproto) {
@@ -234,6 +246,13 @@ QNetworkProxy ToNetworkProxy(const ProxyData &proxy) {
 		return QNetworkProxy::DefaultProxy;
 	} else if (proxy.type == ProxyData::Type::Mtproto) {
 		return QNetworkProxy::NoProxy;
+	} else if (proxy.type == ProxyData::Type::Vless) {
+		// Callers should resolve via forUse() before reaching here; be safe.
+		const auto resolved = proxy.forUse();
+		if (resolved.type != ProxyData::Type::Socks5) {
+			return QNetworkProxy::NoProxy;
+		}
+		return ToNetworkProxy(resolved);
 	}
 	return QNetworkProxy(
 		(proxy.type == ProxyData::Type::Socks5
@@ -243,6 +262,13 @@ QNetworkProxy ToNetworkProxy(const ProxyData &proxy) {
 		proxy.port,
 		proxy.user,
 		proxy.password);
+}
+
+ProxyData ProxyData::forUse() const {
+	if (type != Type::Vless) {
+		return *this;
+	}
+	return Proxy::VlessBridge::instance().ensureRunning(*this);
 }
 
 } // namespace MTP

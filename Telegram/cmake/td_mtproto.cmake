@@ -50,6 +50,10 @@ PRIVATE
     mtproto/mtproto_proxy_data.h
     mtproto/mtproto_response.cpp
     mtproto/mtproto_response.h
+    mtproto/proxy/vless_bridge.cpp
+    mtproto/proxy/vless_bridge.h
+    mtproto/proxy/vless_parser.cpp
+    mtproto/proxy/vless_parser.h
 )
 
 target_include_directories(td_mtproto

@@ -1967,6 +1967,18 @@ if (WIN32)
     endif()
 
     target_link_options(Telegram PRIVATE /PDBPAGESIZE:8192)
+
+    # Copy bundled sing-box sidecar DLL next to Telegram.exe so the VLESS
+    # proxy type (loaded dynamically via QLibrary) can find it at runtime.
+    set(singbox_dll "${CMAKE_CURRENT_SOURCE_DIR}/SourceFiles/../ThirdParty/singbox_bridge/singbox.dll")
+    if (EXISTS "${singbox_dll}")
+        add_custom_command(TARGET Telegram POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${singbox_dll}"
+                "$<TARGET_FILE_DIR:Telegram>/singbox.dll"
+            COMMENT "Copying singbox.dll"
+        )
+    endif()
 elseif (APPLE)
     if (NOT DESKTOP_APP_USE_PACKAGED)
         target_link_libraries(Telegram PRIVATE desktop-app::external_iconv)

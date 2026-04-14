@@ -1,0 +1,138 @@
+name: VLESS Build Check.
+
+on:
+  push:
+    branches:
+      - '**'
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LEGAL'
+      - 'LICENSE'
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LEGAL'
+      - 'LICENSE'
+  workflow_dispatch:
+
+jobs:
+  singbox:
+    name: Build singbox.dll
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build singbox.dll (CGO + MinGW)
+        shell: cmd
+        run: |
+          set CGO_ENABLED=1
+          set GOOS=windows
+          set GOARCH=amd64
+          set CC=gcc
+          cd Telegram\ThirdParty\singbox_bridge
+          go mod tidy
+          go build -tags "with_gvisor,with_quic,with_wireguard,with_utls,with_acme,with_clash_api,with_v2ray_api" -buildmode=c-shared -ldflags="-s -w" -o singbox.dll .
+          dir singbox.dll singbox.h
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: singbox-dll
+          path: |
+            Telegram/ThirdParty/singbox_bridge/singbox.dll
+            Telegram/ThirdParty/singbox_bridge/singbox.h
+          retention-days: 7
+
+  telegram:
+    name: Telegram (x64 + qt6 + Ninja)
+    needs: singbox
+    runs-on: windows-latest
+    env:
+      UPLOAD_ARTIFACT: "false"
+      ONLY_CACHE: "false"
+      PREPARE_PATH: "Telegram/build/prepare/prepare.py"
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      - name: Prepare directories.
+        run: |
+          mkdir %userprofile%\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries>>%GITHUB_ENV%
+
+      - name: Get repository name.
+        shell: bash
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - name: Clone.
+        shell: cmd
+        run: |
+          cd %TBUILD%
+          git clone --depth=1 --recursive https://github.com/%GITHUB_REPOSITORY% %REPO_NAME%
+          cd %REPO_NAME%
+          git fetch origin %GITHUB_SHA% --depth=1
+          git checkout %GITHUB_SHA%
+          git submodule update --init --recursive --depth=1
+
+      - name: Pull singbox.dll artifact.
+        uses: actions/download-artifact@v4
+        with:
+          name: singbox-dll
+          path: ${{ env.TBUILD }}/${{ env.REPO_NAME }}/Telegram/ThirdParty/singbox_bridge/
+
+      - name: Read cache key.
+        shell: bash
+        run: |
+          echo "CACHE_KEY=$(sha256sum $TBUILD/$REPO_NAME/Telegram/build/prepare/prepare.py | cut -d' ' -f1)" >> $GITHUB_ENV
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
+
+      - uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: x64
+
+      - name: NuGet sources.
+        run: |
+          nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
+          nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
+
+      - name: ThirdParty cache.
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: Windows-x64-third-party-${{ env.CACHE_KEY }}
+          restore-keys: Windows-x64-third-party-
+
+      - name: Libraries cache.
+        uses: actions/cache@v5
+        with:
+          path: |
+            ${{ env.LibrariesPath }}\*
+            !${{ env.LibrariesPath }}\cache_keys
+          key: Windows-x64-libs-${{ env.CACHE_KEY }}
+          restore-keys: Windows-x64-libs-
+
+      - name: Libraries (prepare.py).
+        env:
+          GYP_MSVS_OVERRIDE_PATH: 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\'
+          GYP_MSVS_VERSION: 2022
+        run: |
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent qt6
+
+      - name: Telegram Desktop build.
+        run: |
+          cd %TBUILD%\%REPO_NAME%\Telegram
+          call configure.bat ^
+          -G "Ninja Multi-Config" ^
+          qt6 ^
+          -D TDESKTOP_API_TEST=ON ^
+          -D CMAKE_CONFIGURATION_TYPES=Debug ^
+          -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=
+          cmake --build ..\out --config Debug --parallel

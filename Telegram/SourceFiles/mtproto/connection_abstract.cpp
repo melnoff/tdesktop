@@ -173,7 +173,9 @@ ConnectionPointer AbstractConnection::Create(
 		DcOptions::Variants::Protocol protocol,
 		QThread *thread,
 		const bytes::vector &secret,
-		const ProxyData &proxy) {
+		const ProxyData &rawProxy) {
+	// Resolve Vless → local Socks5 pointing at the sing-box sidecar.
+	const auto proxy = rawProxy.forUse();
 	auto result = [&] {
 		if (protocol == DcOptions::Variants::Tcp) {
 			return ConnectionPointer::New<TcpConnection>(

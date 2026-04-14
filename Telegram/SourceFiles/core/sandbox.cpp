@@ -465,11 +465,13 @@ void Sandbox::checkForQuit() {
 }
 
 void Sandbox::refreshGlobalProxy() {
-	const auto proxy = !Core::IsAppLaunched()
+	const auto raw = !Core::IsAppLaunched()
 		? _sandboxProxy
 		: Core::App().settings().proxy().isEnabled()
 		? Core::App().settings().proxy().selected()
 		: MTP::ProxyData();
+	// Resolve Vless to a local Socks5 pointing at the sing-box sidecar.
+	const auto proxy = raw.forUse();
 	if (proxy.type == MTP::ProxyData::Type::Socks5
 		|| proxy.type == MTP::ProxyData::Type::Http) {
 		QNetworkProxy::setApplicationProxy(

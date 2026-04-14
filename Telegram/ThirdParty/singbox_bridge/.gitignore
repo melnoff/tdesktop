@@ -1,0 +1,5 @@
+# Build artifacts (rebuilt via build.bat / CI)
+singbox.dll
+singbox.h
+test/smoke_test.exe
+test/singbox.dll

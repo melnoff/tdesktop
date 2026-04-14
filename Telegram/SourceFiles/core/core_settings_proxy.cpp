@@ -50,6 +50,7 @@ namespace {
 		case 1: return MTP::ProxyData::Type::Socks5;
 		case 2: return MTP::ProxyData::Type::Http;
 		case 3: return MTP::ProxyData::Type::Mtproto;
+		case 4: return MTP::ProxyData::Type::Vless;
 		}
 		Unexpected("Bad type in DeserializeProxyData");
 	}();
@@ -72,6 +73,7 @@ namespace {
 			case MTP::ProxyData::Type::Socks5: return 1;
 			case MTP::ProxyData::Type::Http: return 2;
 			case MTP::ProxyData::Type::Mtproto: return 3;
+			case MTP::ProxyData::Type::Vless: return 4;
 			}
 			Unexpected("Bad type in SerializeProxyData");
 		}();
