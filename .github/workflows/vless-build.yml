@@ -126,6 +126,10 @@ jobs:
         run: |
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat skip-release silent qt6
 
+      - name: Free up some disk space.
+        shell: bash
+        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' ')' -type f ')' -o -empty ')' -delete
+
       - name: Telegram Desktop build.
         run: |
           cd %TBUILD%\%REPO_NAME%\Telegram
@@ -135,4 +139,4 @@ jobs:
           -D TDESKTOP_API_TEST=ON ^
           -D CMAKE_CONFIGURATION_TYPES=Debug ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=
-          cmake --build ..\out --config Debug --parallel
+          cmake --build ..\out --config Debug --parallel 4
