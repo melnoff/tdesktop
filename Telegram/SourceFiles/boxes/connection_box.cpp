@@ -2113,6 +2113,8 @@ void ProxiesBoxController::updateView(const Item &item) {
 		case Type::Http: return u"HTTP"_q;
 		case Type::Socks5: return u"SOCKS5"_q;
 		case Type::Mtproto: return u"MTPROTO"_q;
+		case Type::Vless: return u"VLESS"_q;
+		case Type::None: return u"NONE"_q;
 		}
 		Unexpected("Proxy type in ProxiesBoxController::updateView.");
 	}();
