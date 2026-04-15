@@ -39,7 +39,7 @@ jobs:
           go build -tags "with_gvisor,with_quic,with_wireguard,with_utls,with_acme,with_clash_api,with_v2ray_api" -buildmode=c-shared -ldflags="-s -w" -o singbox.dll .
           dir singbox.dll singbox.h
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: singbox-dll
           path: |
@@ -149,7 +149,7 @@ jobs:
           copy %TBUILD%\%REPO_NAME%\out\Debug\Updater.exe artifact\
           copy %TBUILD%\%REPO_NAME%\Telegram\ThirdParty\singbox_bridge\singbox.dll artifact\
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Telegram-VLESS-x64-qt6
           path: artifact\
