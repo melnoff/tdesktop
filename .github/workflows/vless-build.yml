@@ -140,3 +140,17 @@ jobs:
           -D CMAKE_CONFIGURATION_TYPES=Debug ^
           -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT=
           cmake --build ..\out --config Debug --parallel 4
+
+      - name: Collect artifact.
+        shell: cmd
+        run: |
+          mkdir artifact
+          copy %TBUILD%\%REPO_NAME%\out\Debug\Telegram.exe artifact\
+          copy %TBUILD%\%REPO_NAME%\out\Debug\Updater.exe artifact\
+          copy %TBUILD%\%REPO_NAME%\Telegram\ThirdParty\singbox_bridge\singbox.dll artifact\
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Telegram-VLESS-x64-qt6
+          path: artifact\
+          retention-days: 14
